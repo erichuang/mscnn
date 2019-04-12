@@ -21,20 +21,17 @@ import numpy as np
 import cv2
 
 # 机器学习库
-from tensorflow.python.platform import gfile
 import tensorflow as tf
 
 # 项目库
 import mscnn
 
 # 参数设置
-eval_dir = 'eval'
-data_test_gt = 'Data_original/Data_gt/train_gt/'
-data_test_im = 'Data_original/Data_im/train_im/'
-data_test_index = 'Data_original/dir_name.txt'
+data_test_gt = 'Data_original/Data_gt/test_gt/'
+data_test_im = 'Data_original/Data_im/test_im/'
+data_test_index = 'Data_original/dir_name_test.txt'
 
 FLAGS = tf.app.flags.FLAGS
-tf.app.flags.DEFINE_string('eval_dir', eval_dir, """日志目录""")
 tf.app.flags.DEFINE_string('data_test_gt', data_test_gt, """测试集集标签""")
 tf.app.flags.DEFINE_string('data_test_im', data_test_im, """测试集图片""")
 tf.app.flags.DEFINE_string('data_test_index', data_test_index, """测试集图片""")
@@ -48,7 +45,7 @@ def evaluate():
     # 构建图模型
     images = tf.placeholder("float")
     labels = tf.placeholder("float")
-    predict_op = mscnn.inference(images)
+    predict_op = mscnn.inference_bn(images)
     loss_op = mscnn.loss(predict_op, labels)
 
     # 载入模型参数
@@ -97,7 +94,7 @@ def evaluate():
 
         sum_ab = abs(sum(sum(sum(batch_ys))) - sum(sum(sum(predict[0]))))
         sum_all_mae += sum_ab
-        sum_all_mse += sum_ab * sum_ab
+        sum_all_mse += sum_ab ** 2
 
     avg_mae = sum_all_mae / len(dir_names)
     avg_mse = (sum_all_mse / len(dir_names)) ** 0.5
@@ -105,10 +102,6 @@ def evaluate():
 
 
 def main(argv=None):
-    if gfile.Exists(FLAGS.eval_dir):
-        gfile.DeleteRecursively(FLAGS.eval_dir)
-    gfile.MakeDirs(FLAGS.eval_dir)
-
     evaluate()
 
 

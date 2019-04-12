@@ -19,7 +19,6 @@
 import os.path
 import random
 import cv2
-from six.moves import xrange
 
 # 机器学习库
 import tensorflow as tf
@@ -58,15 +57,14 @@ def train():
         avg_loss = tf.placeholder("float")
 
         # 模型训练相关的初始化工作
-        # predicts = mscnn.inference(image)  # 构建mscnn模型
         predicts = mscnn.inference_bn(image)  # 构建改进mscnn模型
         loss = mscnn.loss(predicts, label)  # 计算损失
         train_op = mscnn.train(loss, global_step, nums_train)  # 获取训练算子
 
         sess = tf.Session(config=tf.ConfigProto(log_device_placement=FLAGS.log_device_placement))  # 创建一个会话
-        saver = tf.train.Saver(tf.all_variables())  # 创建保存器
+        saver = tf.train.Saver(tf.global_variables())  # 创建保存器
 
-        init = tf.initialize_all_variables()  # 变量初始化
+        init = tf.global_variables_initializer()  # 变量初始化
         sess.run(init)  # 初始化模型所有变量
 
         checkpoint_dir = tf.train.get_checkpoint_state(FLAGS.model_dir)
@@ -77,16 +75,16 @@ def train():
 
         summary_op = tf.summary.merge_all()  # 概要汇总
         add_avg_loss_op = mscnn.add_avg_loss(avg_loss)  # 添加平均loss的op
-        summary_writer = tf.summary.FileWriter(FLAGS.train_log, graph_def=sess.graph_def)  # 创建一个概要器
+        summary_writer = tf.summary.FileWriter(FLAGS.train_log, graph=sess.graph)  # 创建一个概要器
 
         # 参数设置
         steps = 100000
         avg_loss_1 = 0
 
-        for step in xrange(steps):
+        for step in range(0, steps):
             if step < nums_train * 10:
                 # 开始10次迭代轮循按样本次序训练
-                num_batch = [divmod(step, nums_train)[1] + i for i in range(FLAGS.batch_size)]
+                num_batch = [step % nums_train + i for i in range(FLAGS.batch_size)]
             else:
                 # 随机选batch_size大小的样本
                 num_batch = random.sample(range(nums_train), nums_train)[0:FLAGS.batch_size]
@@ -111,7 +109,7 @@ def train():
                 ys.append(batch_ys)
 
             np_xs = np.array(xs)
-            np_ys = np.array(ys)
+            np_ys = np.array(ys)[:,:,:,0]
 
             # 获取损失值以及预测密度图
             _, loss_value = sess.run([train_op, loss], feed_dict={image: np_xs, label: np_ys})

@@ -161,81 +161,6 @@ def multi_scale_block(in_con, in_dim, out_dim, is_bn=False):
     return msb
 
 
-def inference(images):
-    """
-    构建MSCNN模型
-    :param images: 原始图像
-    :return: 人群密度估计图像
-    """
-    # -------------------------------------------------------------------------------------------- #
-    # 创建模型
-    # con1_1
-    with tf.variable_scope('con1') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[9, 9, 3, 64],
-                                             stddev=0.01, wd=0.0005)
-        con = tf.nn.conv2d(images, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
-        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0))
-        bias = tf.nn.bias_add(con, biases)
-        con1 = tf.nn.relu(bias)
-        _activation_summary(con1)
-
-    # msb_con2
-    with tf.variable_scope('msb_con2'):
-        msb_con2 = multi_scale_block(con1, 64, 16)
-
-    # pool_msb_con2
-    with tf.variable_scope('pool_msb_con2') as scope:
-        pool_msb_con2 = tf.nn.max_pool(msb_con2, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME',
-                                       name=scope.name)
-
-    # msb_con3
-    with tf.variable_scope('msb_con3'):
-        msb_con3 = multi_scale_block(pool_msb_con2, 64, 32)
-
-    # msb_con4
-    with tf.variable_scope('msb_con4'):
-        msb_con4 = multi_scale_block(msb_con3, 128, 32)
-
-    # pool_msb_con4
-    with tf.variable_scope('pool_msb_con4') as scope:
-        pool_msb_con4 = tf.nn.max_pool(msb_con4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME',
-                                       name=scope.name)
-
-    # msb_con5
-    with tf.variable_scope('msb_con5'):
-        msb_con5 = multi_scale_block(pool_msb_con4, 128, 64)
-
-    # msb_con6
-    with tf.variable_scope('msb_con6'):
-        msb_con6 = multi_scale_block(msb_con5, 256, 64)
-
-    # mpl_con7
-    with tf.variable_scope('mpl_con7') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[1, 1, 256, 1000], stddev=0.001, wd=0.0005)
-        con = tf.nn.conv2d(msb_con6, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
-        biases = _variable_on_cpu('biases', [1000], tf.constant_initializer(0))
-        bias = tf.nn.bias_add(con, biases)
-        mpl_con7 = tf.nn.relu(bias)
-        _activation_summary(mpl_con7)
-
-    # con_out
-    with tf.variable_scope('con_out') as scope:
-        kernel = _variable_with_weight_decay('weights', shape=[1, 1, 1000, 1], stddev=0.001, wd=0.0005)
-        con = tf.nn.conv2d(mpl_con7, kernel, [1, 1, 1, 1], padding='SAME', name=scope.name)
-        biases = _variable_on_cpu('biases', [1], tf.constant_initializer(0))
-        bias = tf.nn.bias_add(con, biases)
-
-        con_out = tf.nn.relu(bias)
-        _activation_summary(con_out)
-
-    # 删除第四维度channel, channel=1
-    image_out = con_out
-
-    tf.summary.image("con_img", image_out)
-
-    return image_out
-
-
 def inference_bn(images):
     """
     在MSCNN模型的cnn层后增加Batch Normal; 对输出的激活函数进行了改进f(x)=relu(sigmoid(x))
@@ -333,7 +258,7 @@ def loss(predict, label):
     """
     # L2 Loss
     predict = tf.squeeze(predict, 3)
-    l2_loss = tf.reduce_sum((predict - label) * (predict - label))
+    l2_loss = tf.reduce_sum((predict - label)**2)
 
     # 增加概要
     tf.summary.histogram('loss', l2_loss)
